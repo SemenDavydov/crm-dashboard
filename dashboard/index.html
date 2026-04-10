@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GBC — дашборд заказов</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Скопируй config.example.js → config.js (локально; в git не коммить ключи). -->
+    <script src="./config.js"></script>
+  </head>
+  <body>
+    <main class="wrap">
+      <h1>Дашборд заказов</h1>
+      <p class="muted">
+        Статическая копия: Chart.js + Supabase anon. Скопируй
+        <code>config.example.js</code> → <code>config.js</code>.
+      </p>
+      <p id="status" class="err"></p>
+      <section class="card">
+        <canvas id="ordersChart" height="120"></canvas>
+      </section>
+      <section>
+        <h2>Топ-5 по сумме</h2>
+        <div class="card">
+          <table id="top">
+            <thead>
+              <tr>
+                <th>№</th>
+                <th>Сумма ₸</th>
+                <th>Клиент</th>
+                <th>Телефон</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <script src="./app.js"></script>
+  </body>
+</html>
