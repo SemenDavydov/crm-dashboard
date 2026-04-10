@@ -28,6 +28,10 @@ function orderTotal(order: Record<string, unknown>) {
   return Number.isFinite(n) ? n : null;
 }
 
+export async function GET() {
+  return NextResponse.json({ ok: true, hint: "POST с телом вебхука RetailCRM" });
+}
+
 export async function POST(request: NextRequest) {
   const secret = process.env.RETAILCRM_WEBHOOK_SECRET;
   if (secret) {

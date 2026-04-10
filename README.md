@@ -74,6 +74,34 @@
 - Корень репозитория — Next.js для Vercel. Укажи все переменные из `.env.example`.  
 - Отдельный статический хостинг для `dashboard/` возможен командой `vercel` из каталога `dashboard` (только после подстановки ключей в `config.js`).
 
+```bash
+npx vercel link
+npx vercel env pull   # опционально
+npx vercel --prod
+```
+
+## MCP / автоматизация из задания
+
+- **`mcp-fetch`** не смог ходить в `*.retailcrm.ru` (robots.txt). Чтение `mock_orders.json` делается локально скриптом из файловой системы.  
+- **`mcp-postgres`**: в этой среде запросы к БД дали `ENOTFOUND`; инструмент в дескрипторе помечен как **read-only**, DDL всё равно выполняй в Supabase SQL Editor (`supabase/sql/001_orders_tz.sql`).  
+- **`mcp-shell`**: эквивалент — запуск `node scripts/...` из терминала проекта на твоей машине.
+
+## GitHub
+
+Репозиторий инициализирован (`git commit` есть). На машине не установлен `gh`; публикация:
+
+```bash
+git remote add origin https://github.com/<user>/<repo>.git
+git push -u origin master
+```
+
+## Проверка вебхука и Telegram
+
+1. Укажи `TELEGRAM_CHANNEL_ID`, добавь бота админом канала.  
+2. Задай `RETAILCRM_WEBHOOK_SECRET` и URL вебхука с `?token=...`.  
+3. Создай в CRM тестовый заказ с суммой **> 50 000 ₸** или вызови `POST /api/retailcrm-webhook` с JSON `{"order":{...}}`.  
+4. Скриншот сообщения в Telegram сделай локально — из среды агента доступа к твоему клиенту Telegram нет.
+
 ## Лицензия
 
 Внутренний проект; при публикации добавь лицензию по договорённости.
