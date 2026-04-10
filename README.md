@@ -43,65 +43,76 @@
 
    `https://<твой-домен-vercel>/api/retailcrm-webhook?token=<RETAILCRM_WEBHOOK_SECRET>`
 
-   Либо заголовок `X-Webhook-Token`. При `totalSumm` / `summ` **> 50 000 ₸** уходит сообщение в Telegram (`API_KEY_BOT` + `TELEGRAM_CHANNEL_ID`).
+   Либо заголовок `X-Webhook-Token`. При `totalSumm` / `summ` **> 50 000 ₸** уходит сообщение в Telegram (`API_KEY_BOT` + `TELEGRAM_CHANNEL_ID`).
 
 ## Скрипты
 
 | Команда | Назначение |
 |--------|------------|
-| `npm run upload:mock-to-crm` | `mock_orders.json` → RetailCRM (`/api/v5/orders/edit`) |
+| `npm run upload:mock-to-crm` | `mock_orders.json` → RetailCRM (`/api/v5/orders/create`) |
 | `npm run sync:crm-to-supabase` | Все заказы из CRM → `public.orders` |
 | `GET /api/sync` | То же на Vercel (нужен `CRON_SECRET` + Bearer на проде) |
 
-## Ограничения и типовые ошибки
-
-- **MCP `mcp-fetch`** к хосту `*.retailcrm.ru` может быть недоступен из‑за `robots.txt`; скрипты и `curl` с твоей машины обычно работают.
-- **MCP Postgres** в среде агента был без валидного хоста (`ENOTFOUND`); DDL выполняется в Supabase SQL Editor, не через MCP.
-- **403 Forbidden** к API: неверный ключ, ограничение по IP в RetailCRM или лимит нагрузки.
-- **Типы заказа / способ** в CRM должны существовать (`orderType`, `orderMethod` из `mock_orders.json`); иначе RetailCRM вернёт ошибку валидации.
-- Секреты не коммить: `.env.local`, токен бота, `service_role`.
-
-## Эволюция требований (сводка промптов)
-
-1. Мини-дашборд + инструкции по RetailCRM / Supabase / Vercel.  
-2. Реализация Next.js + синк + Telegram (черновой).  
-3. Текущий запрос: пошаговый pipeline (mock → CRM → Supabase с новой схемой `orders`), отдельная папка `dashboard/`, вебхук >50 000 ₸, документация и деплой.
-
-Ошибки на пути и исправления: неверное предположение про JSON body для RetailCRM POST → перевод на `x-www-form-urlencoded` + `order` как JSON-строка; конфликт старой таблицы `orders` → явный SQL с `DROP`/предупреждением; уведомления в Telegram перенесены с «каждый синк» на **вебхук по порогу суммы**.
-
 ## Деплой
 
-- Корень репозитория — Next.js для Vercel. Укажи все переменные из `.env.example`.  
-- Отдельный статический хостинг для `dashboard/` возможен командой `vercel` из каталога `dashboard` (только после подстановки ключей в `config.js`).
-
-```bash
-npx vercel link
-npx vercel env pull   # опционально
-npx vercel --prod
-```
-
-## MCP / автоматизация из задания
-
-- **`mcp-fetch`** не смог ходить в `*.retailcrm.ru` (robots.txt). Чтение `mock_orders.json` делается локально скриптом из файловой системы.  
-- **`mcp-postgres`**: в этой среде запросы к БД дали `ENOTFOUND`; инструмент в дескрипторе помечен как **read-only**, DDL всё равно выполняй в Supabase SQL Editor (`supabase/sql/001_orders_tz.sql`).  
-- **`mcp-shell`**: эквивалент — запуск `node scripts/...` из терминала проекта на твоей машине.
-
-## GitHub
-
-Репозиторий инициализирован (`git commit` есть). На машине не установлен `gh`; публикация:
+- Корень репозитория — Next.js для Vercel. Укажи все переменные из `.env.example`.
+- После пуша в GitHub Vercel автоматически деплоит.
 
 ```bash
 git remote add origin https://github.com/<user>/<repo>.git
-git push -u origin master
+git push -u origin main
 ```
+
+## Ограничения и типовые ошибки
+
+- **403 Forbidden** к API: неверный ключ, ограничение по IP в RetailCRM или лимит нагрузки.
+- **Типы заказа / способ** в CRM должны существовать (`orderType`, `orderMethod`); иначе RetailCRM вернёт ошибку валидации.
+- **Cron на Hobby-плане Vercel** — только раз в сутки (`0 0 * * *`). Для более частого синка используй вебхук или Pro-план.
+- Секреты не коммить: `.env.local`, токен бота, `service_role`.
+
+---
+
+## Работа с Claude Code: промпты, проблемы, решения
+
+### Какие промпты давал
+
+1. **Структура проекта** — «Создай Next.js-проект с Supabase, RetailCRM и Telegram-ботом»
+2. **Mock-данные** — «Сгенерируй 50 тестовых заказов и залей в RetailCRM через API»
+3. **Синхронизация** — «Напиши скрипт синка RetailCRM → Supabase с upsert по order_number»
+4. **Дашборд** — «Сделай дашборд: график заказов за 7 дней (Chart.js) + топ-5 по сумме»
+5. **Telegram** — «Добавь вебхук: при заказе > 50 000 ₸ отправлять уведомление в Telegram-группу»
+6. **Деплой** — «Помоги задеплоить на Vercel и настроить переменные окружения»
+
+### Где застрял и как решил
+
+| Проблема | Как проявилась | Решение |
+|----------|---------------|---------|
+| RetailCRM не принимал JSON body | 400 Bad Request при POST | API v5 требует `x-www-form-urlencoded`, поле `order` — JSON-строка |
+| `orderType=eshop-individual` не существовал | Ошибка валидации в CRM | Скрипт стал автоматически брать реальные коды из `/api/v5/reference/order-types` |
+| `orders/edit` — неверный endpoint | 404 при создании нового заказа | Переключились на `POST /api/v5/orders/create`; `edit` — только для существующих |
+| Vercel блокировал вебхук | 401 Authentication Required | Отключил Vercel Authentication в Settings → Deployment Protection |
+| Cron `*/20 * * * *` не работает | Ошибка при деплое (Hobby-план) | Изменил расписание на `0 0 * * *` (раз в сутки) |
+| Output Directory не найден | Ошибка сборки «No Output Directory named public» | В Settings → General → Framework Preset выставил Next.js, Output Directory оставил пустым |
+| `curl` не работает в PowerShell | Ошибка «Не удается найти параметр -X» | Использовал `Invoke-RestMethod` вместо curl |
+| Кириллица в тесте → `????` | Имя клиента отображалось вопросиками | Проблема кодировки PowerShell; с реальными данными из CRM всё корректно |
+| Telegram `getUpdates` пустой | `{"ok":true,"result":[]}` | Нужно было сначала добавить бота в группу, отключить Group Privacy в BotFather, написать сообщение |
+
+### MCP-инструменты
+
+- **`mcp-fetch`** — не смог обращаться к `*.retailcrm.ru` из-за `robots.txt`; работа через скрипты с локальной машины.
+- **`mcp-postgres`** — хост Supabase недоступен из среды агента (`ENOTFOUND`); DDL выполнялся в SQL Editor.
+
+---
 
 ## Проверка вебхука и Telegram
 
-1. Укажи `TELEGRAM_CHANNEL_ID`, добавь бота админом канала.  
-2. Задай `RETAILCRM_WEBHOOK_SECRET` и URL вебхука с `?token=...`.  
-3. Создай в CRM тестовый заказ с суммой **> 50 000 ₸** или вызови `POST /api/retailcrm-webhook` с JSON `{"order":{...}}`.  
-4. Скриншот сообщения в Telegram сделай локально — из среды агента доступа к твоему клиенту Telegram нет.
+1. Укажи `TELEGRAM_CHANNEL_ID` и `API_KEY_BOT` в переменных окружения.
+2. Добавь бота в Telegram-группу, отключи Group Privacy через BotFather.
+3. Задай `RETAILCRM_WEBHOOK_SECRET` и URL вебхука с `?token=...`.
+4. Тестовый вызов (PowerShell):
 
-## Лицензия
+   ```powershell
+   Invoke-RestMethod -Uri "https://<домен>/api/retailcrm-webhook?token=<SECRET>" -Method POST -ContentType "application/json" -Body '{"order":{"number":"TEST-001","totalSumm":75000,"firstName":"Тест","lastName":"Проверка","phone":"+77001234567"}}'
+   ```
 
-Внутренний проект; при публикации добавь лицензию по договорённости.
+5. В Telegram-группу должно прийти уведомление о крупном заказе.
